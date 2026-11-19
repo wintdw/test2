@@ -1,0 +1,721 @@
+<meta charset="utf-8">
+<title>MediaPlanner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: planner's desk — brief panel on the left, live plan (KPIs, channel mix, charts, flighting grid) on the right */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #f6f8fb;
+  --ink: #111a2c;
+  --muted: #5a6478;
+  --line: #dbe1ea;
+  --accent: #1b56e8;
+  --accent-ink: #ffffff;
+  --accent-soft: #e4ecff;
+  --good: #1e8a55;
+  --warn: #b25e09;
+  --warn-soft: #fff2df;
+  --hatch: #d4dae4;
+  --font-ui: "Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c111a; --surface: #141b27; --surface-2: #1a2231; --ink: #e6ebf3; --muted: #93a0b5;
+    --line: #263043; --accent: #6f97ff; --accent-ink: #0c111a; --accent-soft: #1a2747;
+    --good: #4cc28a; --warn: #f0a24a; --warn-soft: #2e2213; --hatch: #2a3447; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c111a; --surface: #141b27; --surface-2: #1a2231; --ink: #e6ebf3; --muted: #93a0b5;
+  --line: #263043; --accent: #6f97ff; --accent-ink: #0c111a; --accent-soft: #1a2747;
+  --good: #4cc28a; --warn: #f0a24a; --warn-soft: #2e2213; --hatch: #2a3447; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--font-ui); font-size: 14px; line-height: 1.5; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 21; background: var(--surface); }
+.topbar-in { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); max-width: 1440px; margin: 0 auto; }
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+.logo-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 5px; }
+.logo-mark i { background: var(--accent-ink); border-radius: 1px; opacity: .9; }
+.logo-mark i:nth-child(2), .logo-mark i:nth-child(6), .logo-mark i:nth-child(7) { opacity: .35; }
+.pill { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); }
+.spacer { flex: 1; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 7px 12px; border-radius: 8px; cursor: pointer; font-weight: 500; white-space: nowrap; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.small { padding: 4px 9px; font-size: 12.5px; }
+
+.app { max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 20px; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); align-items: start; }
+@media (max-width: 1020px) { .app { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.brief { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 72px); max-height: calc(100vh - env(safe-area-inset-top, 0px) - 88px); overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+@media (max-width: 1020px) { .brief { position: static; max-height: none; } }
+.brief h2, .sec-h h2 { font-size: 15px; font-weight: 600; }
+.eyebrow { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label, .field .lbl { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.input { width: 100%; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.row2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+.row2 .input { min-width: 0; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface-2); padding: 8px 4px; cursor: pointer; font-size: 12.5px; font-weight: 500; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.audience { background: var(--surface-2); border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.audience b { font-size: 18px; }
+.hint { font-size: 12px; color: var(--muted); }
+
+.main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+@media (max-width: 1280px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi { background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kpi .v { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .s { font-size: 12px; color: var(--muted); }
+
+.sec { padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.sec-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sec-h p { margin: 0; color: var(--muted); font-size: 12.5px; }
+.alloc { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.alloc-bar { width: 120px; height: 6px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+.alloc-bar i { display: block; height: 100%; background: var(--good); }
+.alloc.over .alloc-bar i, .alloc.under .alloc-bar i { background: var(--warn); }
+.alloc.over span, .alloc.under span { color: var(--warn); font-weight: 600; }
+
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; }
+.mix { min-width: 900px; }
+.mix th { text-align: right; font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; text-transform: uppercase; letter-spacing: .03em; }
+.mix th:first-child, .mix th:nth-child(2) { text-align: left; }
+.mix td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.mix td:first-child, .mix td:nth-child(2) { text-align: left; }
+.mix tr.zero td:not(:first-child):not(:nth-child(2)) { color: var(--muted); }
+.mix tfoot td { font-weight: 600; border-bottom: 0; }
+.chname { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.tag { font-family: var(--font-num); font-size: 10.5px; padding: 1px 5px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); }
+.share { display: flex; align-items: center; gap: 8px; }
+.share input[type=range] { width: 110px; accent-color: var(--accent); }
+.share input[type=number], .rate { width: 64px; text-align: right; border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 4px 6px; font-family: var(--font-num); font-size: 13px; }
+.rate { width: 86px; }
+.warnchip { display: inline-block; margin-left: 6px; font-size: 11px; color: var(--warn); background: var(--warn-soft); padding: 1px 6px; border-radius: 4px; font-weight: 600; }
+
+.charts { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: 20px; }
+@media (max-width: 760px) { .charts { grid-template-columns: minmax(0, 1fr); } }
+.donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.legend { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; width: 100%; font-size: 12.5px; }
+.legend span { display: flex; align-items: center; gap: 6px; }
+svg text { fill: var(--muted); font-family: var(--font-num); font-size: 10.5px; }
+svg .gridline { stroke: var(--line); stroke-width: 1; }
+
+.gantt { min-width: 640px; }
+.gantt th { font-size: 11px; font-weight: 500; color: var(--muted); padding: 4px 2px 8px; text-align: center; white-space: nowrap; }
+.gantt th.ch { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; min-width: 160px; }
+.gantt td { padding: 2px; }
+.gantt td.ch { position: sticky; left: 0; background: var(--surface); z-index: 1; padding-right: 10px; font-size: 13px; white-space: nowrap; }
+.cell { width: 100%; min-width: 38px; height: 30px; border-radius: 5px; border: 1px solid transparent; cursor: pointer; display: grid; place-items: center; font-family: var(--font-num); font-size: 10px; color: var(--ink); position: relative; overflow: hidden; }
+.cell .fill { position: absolute; inset: 0; }
+.cell em { position: relative; font-style: normal; }
+.cell.off { background: repeating-linear-gradient(45deg, var(--surface-2) 0 5px, var(--hatch) 5px 6px); border-color: var(--line); color: var(--muted); }
+.cell:hover { border-color: var(--ink); }
+.gantt tfoot td { font-family: var(--font-num); font-size: 10.5px; color: var(--muted); text-align: center; padding-top: 6px; }
+.gantt tfoot td.ch { text-align: left; font-family: var(--font-ui); font-weight: 600; color: var(--ink); }
+
+.scen { width: 100%; min-width: 620px; }
+.scen th, .scen td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.scen th { font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.scen th:first-child, .scen td:first-child { text-align: left; }
+.scen td.best { color: var(--good); font-weight: 600; }
+.empty { color: var(--muted); font-size: 13px; padding: 14px; border: 1px dashed var(--line); border-radius: 8px; text-align: center; }
+
+.notes { font-size: 12.5px; color: var(--muted); display: grid; gap: 4px; }
+.notes ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; max-width: 90ch; }
+
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-weight: 500; opacity: 0; pointer-events: none; transition: .2s; z-index: 50; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="logo"><span class="logo-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>MediaPlanner</div>
+    <span class="pill">Bản thử nghiệm · Dữ liệu mẫu</span>
+    <span class="spacer"></span>
+    <button class="btn" id="btn-reset" type="button">Đặt lại mẫu</button>
+    <button class="btn" id="btn-copy" type="button">Sao chép kế hoạch</button>
+    <button class="btn primary" id="btn-save" type="button">Lưu phương án</button>
+  </div>
+</header>
+
+<div class="app">
+  <aside class="panel brief" aria-label="Thông tin chiến dịch">
+    <div>
+      <div class="eyebrow">Brief chiến dịch</div>
+      <h2>Thiết lập đầu vào</h2>
+    </div>
+    <div class="field">
+      <label for="f-name">Tên chiến dịch</label>
+      <input class="input" id="f-name" type="text">
+    </div>
+    <div class="field">
+      <span class="lbl">Mục tiêu</span>
+      <div class="seg" id="f-obj" role="group" aria-label="Mục tiêu">
+        <button type="button" data-v="awareness">Nhận biết</button>
+        <button type="button" data-v="consideration">Cân nhắc</button>
+        <button type="button" data-v="conversion">Chuyển đổi</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="f-budget">Tổng ngân sách (VNĐ)</label>
+      <input class="input num" id="f-budget" type="text" inputmode="numeric">
+      <div class="chips" id="f-budget-q">
+        <button class="chip" type="button" data-v="500000000">500 tr</button>
+        <button class="chip" type="button" data-v="1000000000">1 tỷ</button>
+        <button class="chip" type="button" data-v="2000000000">2 tỷ</button>
+        <button class="chip" type="button" data-v="5000000000">5 tỷ</button>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="f-start">Bắt đầu</label><input class="input" id="f-start" type="date"></div>
+      <div class="field"><label for="f-end">Kết thúc</label><input class="input" id="f-end" type="date"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="f-agemin">Tuổi từ</label><select class="input" id="f-agemin"></select></div>
+      <div class="field"><label for="f-agemax">Đến</label><select class="input" id="f-agemax"></select></div>
+    </div>
+    <div class="field">
+      <span class="lbl">Giới tính</span>
+      <div class="seg" id="f-gender" role="group" aria-label="Giới tính">
+        <button type="button" data-v="all">Tất cả</button>
+        <button type="button" data-v="male">Nam</button>
+        <button type="button" data-v="female">Nữ</button>
+      </div>
+    </div>
+    <div class="field">
+      <span class="lbl">Khu vực</span>
+      <div class="chips" id="f-region"></div>
+    </div>
+    <div class="audience">
+      <div><div class="eyebrow">Tập khách hàng mục tiêu</div><span class="hint" id="aud-pct"></span></div>
+      <b class="num" id="aud-size"></b>
+    </div>
+    <div class="field">
+      <label for="f-pattern">Nhịp phân bổ theo tuần</label>
+      <select class="input" id="f-pattern">
+        <option value="even">Đều các tuần</option>
+        <option value="launch">Bùng nổ 2 tuần đầu</option>
+        <option value="pulse">Nhịp xung (2 tuần chạy, 1 tuần nghỉ nhẹ)</option>
+        <option value="taper">Giảm dần về cuối</option>
+      </select>
+    </div>
+  </aside>
+
+  <main class="main">
+    <section class="kpis" id="kpis" aria-label="Chỉ số dự kiến"></section>
+
+    <section class="panel sec" aria-labelledby="h-mix">
+      <div class="sec-h">
+        <h2 id="h-mix">Phân bổ kênh</h2>
+        <div class="alloc" id="alloc"><div class="alloc-bar"><i></i></div><span></span></div>
+        <span class="spacer"></span>
+        <button class="btn small" id="btn-norm" type="button">Chuẩn hoá về 100%</button>
+        <button class="btn small" id="btn-suggest" type="button">Gợi ý theo mục tiêu</button>
+      </div>
+      <div class="scroll">
+        <table class="mix">
+          <thead><tr>
+            <th>Kênh</th><th>Tỷ trọng</th><th>Ngân sách</th><th>Đơn giá</th><th>Hiển thị</th><th>Tiếp cận</th><th>Tần suất</th><th>Click</th><th>Chuyển đổi</th>
+          </tr></thead>
+          <tbody id="mix-body"></tbody>
+          <tfoot><tr id="mix-foot"></tr></tfoot>
+        </table>
+      </div>
+      <p class="hint" style="margin:0">Đơn giá có thể sửa trực tiếp: CPM tính trên 1.000 lượt hiển thị, CPC tính trên mỗi click. Đơn giá đã gồm hệ số nhắm chọn hiện tại.</p>
+    </section>
+
+    <section class="panel sec" aria-labelledby="h-charts">
+      <div class="sec-h"><h2 id="h-charts">Cơ cấu ngân sách</h2><p>Tỷ trọng theo kênh và chi tiêu từng tuần</p></div>
+      <div class="charts">
+        <div class="donut-wrap"><svg id="donut" viewBox="0 0 180 180" width="180" height="180" role="img" aria-label="Biểu đồ tỷ trọng ngân sách"></svg><div class="legend" id="legend"></div></div>
+        <div class="scroll"><svg id="bars" role="img" aria-label="Chi tiêu theo tuần"></svg></div>
+      </div>
+    </section>
+
+    <section class="panel sec" aria-labelledby="h-flight">
+      <div class="sec-h"><h2 id="h-flight">Lịch chạy (flighting)</h2><p>Bấm vào ô để bật / tắt tuần chạy của từng kênh. Ngân sách kênh tự dồn sang các tuần còn lại.</p></div>
+      <div class="scroll"><table class="gantt" id="gantt"></table></div>
+    </section>
+
+    <section class="panel sec" aria-labelledby="h-scen">
+      <div class="sec-h"><h2 id="h-scen">So sánh phương án</h2><p>Lưu tối đa 5 phương án để so sánh. Dữ liệu chỉ lưu trên trình duyệt này.</p></div>
+      <div id="scen"></div>
+    </section>
+
+    <section class="notes" aria-label="Giả định">
+      <strong>Giả định của mô hình (dữ liệu mẫu, chỉ để thử nghiệm)</strong>
+      <ul>
+        <li>Quy mô người dùng internet Việt Nam giả định 72 triệu, chia theo độ tuổi, giới tính và khu vực.</li>
+        <li>Đơn giá CPM/CPC, CTR, tỷ lệ chuyển đổi là số liệu tham khảo tự tạo, không phải báo giá thực tế.</li>
+        <li>Nhắm chọn càng hẹp thì CPM kênh digital càng cao (tối đa +25%). Truyền hình và OOH phủ đại chúng nên chỉ một phần lượt hiển thị trúng tập mục tiêu.</li>
+        <li>Tiếp cận mỗi kênh tính theo đường cong bão hoà; tiếp cận tổng giả định các kênh trùng lặp ngẫu nhiên.</li>
+      </ul>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  // ---------- Sample data ----------
+  const POP = 72e6;
+  const AGE_BANDS = [[15,18,.07],[18,25,.20],[25,35,.27],[35,45,.22],[45,55,.14],[55,66,.10]];
+  const AGE_OPTS = [15,18,25,35,45,55,65];
+  const REGIONS = [
+    { id: 'hn', name: 'Hà Nội', share: .15 },
+    { id: 'hcm', name: 'TP. HCM', share: .20 },
+    { id: 'north', name: 'Miền Bắc khác', share: .22 },
+    { id: 'central', name: 'Miền Trung', share: .18 },
+    { id: 'south', name: 'Miền Nam khác', share: .25 },
+  ];
+  const CH = [
+    { id: 'meta',    name: 'Facebook & Instagram', mode: 'cpm', rate: 38000,  ctr: .009,  cvr: .020, pen: .85, slope: 0,    color: '#3e63dd' },
+    { id: 'tiktok',  name: 'TikTok',               mode: 'cpm', rate: 32000,  ctr: .007,  cvr: .014, pen: .60, slope: .12,  color: '#e5484d' },
+    { id: 'youtube', name: 'YouTube',              mode: 'cpm', rate: 45000,  ctr: .004,  cvr: .012, pen: .88, slope: .03,  color: '#f76b15' },
+    { id: 'search',  name: 'Google Search',        mode: 'cpc', rate: 6500,   ctr: .060,  cvr: .045, pen: .90, slope: 0,    color: '#30a46c' },
+    { id: 'gdn',     name: 'Google Display',       mode: 'cpm', rate: 15000,  ctr: .0035, cvr: .008, pen: .80, slope: 0,    color: '#12a594' },
+    { id: 'zalo',    name: 'Zalo Ads',             mode: 'cpm', rate: 42000,  ctr: .008,  cvr: .016, pen: .78, slope: -.04, color: '#0090ff' },
+    { id: 'news',    name: 'Báo điện tử',          mode: 'cpm', rate: 65000,  ctr: .0025, cvr: .008, pen: .55, slope: -.06, color: '#8e4ec6' },
+    { id: 'tv',      name: 'Truyền hình (TVC)',    mode: 'cpm', rate: 110000, ctr: 0,     cvr: 0,    pen: .70, slope: -.10, color: '#ad7f58', mass: true },
+    { id: 'ooh',     name: 'Ngoài trời (OOH)',     mode: 'cpm', rate: 55000,  ctr: 0,     cvr: 0,    pen: .35, slope: 0,    color: '#d6409f', mass: true },
+  ];
+  const PRESETS = {
+    awareness:     { meta: 22, tiktok: 18, youtube: 22, search: 0,  gdn: 8, zalo: 5,  news: 5, tv: 15, ooh: 5 },
+    consideration: { meta: 25, tiktok: 18, youtube: 18, search: 12, gdn: 7, zalo: 8,  news: 7, tv: 5,  ooh: 0 },
+    conversion:    { meta: 30, tiktok: 15, youtube: 5,  search: 30, gdn: 8, zalo: 10, news: 2, tv: 0,  ooh: 0 },
+  };
+  const OBJ_NAME = { awareness: 'Nhận biết', consideration: 'Cân nhắc', conversion: 'Chuyển đổi' };
+  const DEFAULT = {
+    name: 'Ra mắt Cà phê Sương Mai – Tết 2027',
+    objective: 'awareness',
+    budget: 2000000000,
+    start: '2026-12-07',
+    end: '2027-02-07',
+    ageMin: 18, ageMax: 34,
+    gender: 'all',
+    regions: ['hn', 'hcm'],
+    pattern: 'launch',
+    shares: { ...PRESETS.awareness },
+    rates: {},
+    off: { tv: [7, 8], ooh: [0] },
+  };
+  const KEY = 'mediaplanner.state.v1', SKEY = 'mediaplanner.scenarios.v1';
+
+  const clone = o => JSON.parse(JSON.stringify(o));
+  const store = {
+    get(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  };
+  let S = Object.assign(clone(DEFAULT), store.get(KEY) || {});
+  let scenarios = store.get(SKEY) || [];
+
+  // ---------- Formatting ----------
+  const nf = (d) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: d });
+  const big = (n, d = 1) => {
+    const a = Math.abs(n);
+    if (a >= 1e9) return nf(2).format(n / 1e9) + ' tỷ';
+    if (a >= 1e6) return nf(d).format(n / 1e6) + ' tr';
+    if (a >= 1e4) return nf(0).format(n / 1e3) + ' N';
+    return nf(0).format(n);
+  };
+  const vnd = n => n > 0 ? big(n) + (Math.abs(n) < 1e4 ? ' đ' : '') : '—';
+  const cnt = n => n >= 0.5 ? big(n) : '—';
+  const full = n => nf(0).format(Math.round(n));
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // ---------- Model ----------
+  function audience() {
+    let age = 0;
+    for (const [a, b, sh] of AGE_BANDS) {
+      const lo = Math.max(a, S.ageMin), hi = Math.min(b, S.ageMax + 1);
+      if (hi > lo) age += sh * (hi - lo) / (b - a);
+    }
+    const g = S.gender === 'all' ? 1 : S.gender === 'male' ? .49 : .51;
+    const r = REGIONS.filter(x => S.regions.includes(x.id)).reduce((s, x) => s + x.share, 0);
+    const size = POP * age * g * r;
+    return { size, ratio: size / POP, avgAge: (S.ageMin + S.ageMax) / 2 };
+  }
+  function weeks() {
+    const s = new Date(S.start + 'T00:00:00'), e = new Date(S.end + 'T00:00:00');
+    let days = Math.round((e - s) / 864e5) + 1;
+    if (!isFinite(days) || days < 1) days = 7;
+    days = Math.min(days, 7 * 52);
+    const out = [];
+    for (let i = 0; i * 7 < days; i++) {
+      const d = new Date(s.getTime() + i * 7 * 864e5);
+      out.push({ i, date: d, frac: Math.min(7, days - i * 7) / 7 });
+    }
+    return out;
+  }
+  function patternW(i, n) {
+    switch (S.pattern) {
+      case 'launch': return i < 2 ? 1.8 : 1;
+      case 'pulse': return i % 3 === 2 ? .25 : 1;
+      case 'taper': return n > 1 ? 1.6 - 1.2 * i / (n - 1) : 1;
+      default: return 1;
+    }
+  }
+  function compute() {
+    const aud = audience(), W = weeks(), tp = aud.size;
+    const cpmMult = 1 + .25 * (1 - Math.sqrt(Math.min(1, aud.ratio)));
+    const rows = CH.map(ch => {
+      const share = +S.shares[ch.id] || 0;
+      const budget = S.budget * share / 100;
+      const base = S.rates[ch.id] != null ? S.rates[ch.id] : ch.rate;
+      const rate = ch.mass ? base : base * cpmMult;
+      let imps, clicks;
+      if (ch.mode === 'cpc') { clicks = budget / rate; imps = clicks / ch.ctr; }
+      else { imps = budget / rate * 1000; clicks = imps * ch.ctr; }
+      const inT = ch.mass ? imps * Math.min(1, aud.ratio * 1.3) : imps;
+      const pen = Math.max(.1, Math.min(.95, ch.pen + ch.slope * (30 - aud.avgAge) / 10));
+      const U = tp * pen;
+      const reach = U > 0 ? U * (1 - Math.exp(-inT / U)) : 0;
+      const conv = clicks * ch.cvr;
+      const off = new Set(S.off[ch.id] || []);
+      const w = W.map(wk => off.has(wk.i) ? 0 : patternW(wk.i, W.length) * wk.frac);
+      const wsum = w.reduce((a, b) => a + b, 0);
+      const weekly = w.map(x => wsum > 0 ? budget * x / wsum : 0);
+      const searchCap = ch.mode === 'cpc' ? tp * .12 * W.length : Infinity;
+      return { ch, share, budget, rate, imps, inT, reach, clicks, conv, weekly, freq: reach > 0 ? inT / reach : 0,
+        noWeeks: budget > 0 && wsum === 0, overSearch: imps > searchCap };
+    });
+    const sum = k => rows.reduce((s, r) => s + r[k], 0);
+    const miss = rows.reduce((p, r) => p * (1 - (tp > 0 ? Math.min(1, r.reach / tp) : 0)), 1);
+    const reach = tp * (1 - miss);
+    const T = { budget: sum('budget'), imps: sum('imps'), inT: sum('inT'), clicks: sum('clicks'), conv: sum('conv'), reach,
+      shareTotal: sum('share') };
+    T.freq = reach > 0 ? T.inT / reach : 0;
+    T.reachPct = tp > 0 ? reach / tp : 0;
+    T.cpa = T.conv >= 1 ? T.budget / T.conv : 0;
+    T.cpr = reach > 0 ? T.budget / reach : 0;
+    const weekly = W.map((_, i) => rows.reduce((s, r) => s + r.weekly[i], 0));
+    return { aud, W, rows, T, weekly, cpmMult };
+  }
+
+  // ---------- Brief form ----------
+  const fName = $('#f-name'), fBudget = $('#f-budget'), fStart = $('#f-start'), fEnd = $('#f-end'),
+        fMin = $('#f-agemin'), fMax = $('#f-agemax'), fPattern = $('#f-pattern');
+  AGE_OPTS.slice(0, -1).forEach(a => fMin.add(new Option(a + ' tuổi', a)));
+  AGE_OPTS.slice(1).forEach(a => fMax.add(new Option(a === 65 ? '65+' : (a - 1) + ' tuổi', a === 65 ? 65 : a - 1)));
+  $('#f-region').innerHTML = REGIONS.map(r => `<button type="button" class="chip" data-v="${r.id}">${r.name}</button>`).join('');
+
+  function syncForm() {
+    fName.value = S.name;
+    fBudget.value = full(S.budget);
+    fStart.value = S.start; fEnd.value = S.end;
+    fMin.value = S.ageMin; fMax.value = S.ageMax;
+    fPattern.value = S.pattern;
+    document.querySelectorAll('#f-obj button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.objective));
+    document.querySelectorAll('#f-gender button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.gender));
+    document.querySelectorAll('#f-region button').forEach(b => b.setAttribute('aria-pressed', S.regions.includes(b.dataset.v)));
+    document.querySelectorAll('#f-budget-q button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === S.budget));
+  }
+  fName.addEventListener('input', () => { S.name = fName.value; persist(); });
+  fBudget.addEventListener('input', () => {
+    const n = +fBudget.value.replace(/\D/g, '') || 0;
+    S.budget = Math.min(n, 1e12);
+    const pos = fBudget.value.length - fBudget.selectionStart;
+    fBudget.value = S.budget ? full(S.budget) : '';
+    const p = Math.max(0, fBudget.value.length - pos);
+    try { fBudget.setSelectionRange(p, p); } catch (e) {}
+    document.querySelectorAll('#f-budget-q button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === S.budget));
+    update();
+  });
+  $('#f-budget-q').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.budget = +b.dataset.v; syncForm(); update(); });
+  $('#f-obj').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    S.objective = b.dataset.v; syncForm(); update();
+  });
+  $('#f-gender').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.gender = b.dataset.v; syncForm(); update(); });
+  $('#f-region').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const v = b.dataset.v;
+    if (S.regions.includes(v)) { if (S.regions.length === 1) return toast('Cần chọn ít nhất một khu vực'); S.regions = S.regions.filter(x => x !== v); }
+    else S.regions = [...S.regions, v];
+    syncForm(); update();
+  });
+  const onDate = () => {
+    if (!fStart.value || !fEnd.value) return;
+    if (fEnd.value < fStart.value) { toast('Ngày kết thúc phải sau ngày bắt đầu'); fEnd.value = S.end; return; }
+    S.start = fStart.value; S.end = fEnd.value; update();
+  };
+  fStart.addEventListener('change', onDate); fEnd.addEventListener('change', onDate);
+  fMin.addEventListener('change', () => { S.ageMin = +fMin.value; if (S.ageMax < S.ageMin) S.ageMax = [...fMax.options].map(o => +o.value).find(v => v >= S.ageMin); syncForm(); update(); });
+  fMax.addEventListener('change', () => { S.ageMax = +fMax.value; if (S.ageMax < S.ageMin) S.ageMin = [...fMin.options].map(o => +o.value).filter(v => v <= S.ageMax).pop(); syncForm(); update(); });
+  fPattern.addEventListener('change', () => { S.pattern = fPattern.value; update(); });
+
+  // ---------- Channel mix table ----------
+  const body = $('#mix-body');
+  body.innerHTML = CH.map(ch => `
+    <tr data-id="${ch.id}">
+      <td><div class="chname"><span class="dot" style="background:${ch.color}"></span>${ch.name}</div></td>
+      <td><div class="share">
+        <input type="range" id="sr-${ch.id}" min="0" max="100" step="1" aria-label="Tỷ trọng ${ch.name}">
+        <input type="number" id="sn-${ch.id}" min="0" max="100" step="1" aria-label="Tỷ trọng % ${ch.name}">
+      </div></td>
+      <td class="num" data-k="budget"></td>
+      <td><span class="tag">${ch.mode.toUpperCase()}</span> <input class="rate" id="rt-${ch.id}" type="text" inputmode="numeric" aria-label="Đơn giá ${ch.name}"></td>
+      <td class="num" data-k="imps"></td>
+      <td class="num" data-k="reach"></td>
+      <td class="num" data-k="freq"></td>
+      <td class="num" data-k="clicks"></td>
+      <td class="num" data-k="conv"></td>
+    </tr>`).join('');
+  function syncShares() {
+    CH.forEach(ch => {
+      const v = +S.shares[ch.id] || 0;
+      $('#sr-' + ch.id).value = v; $('#sn-' + ch.id).value = v;
+      $('#rt-' + ch.id).value = full(S.rates[ch.id] != null ? S.rates[ch.id] : ch.rate);
+    });
+  }
+  body.addEventListener('input', e => {
+    const t = e.target, tr = t.closest('tr'); if (!tr) return;
+    const id = tr.dataset.id;
+    if (t.type === 'range' || t.type === 'number') {
+      const v = Math.max(0, Math.min(100, Math.round(+t.value || 0)));
+      S.shares[id] = v;
+      if (t.type === 'range') $('#sn-' + id).value = v; else $('#sr-' + id).value = v;
+      update();
+    }
+  });
+  body.addEventListener('change', e => {
+    const t = e.target; if (!t.classList.contains('rate')) return;
+    const id = t.closest('tr').dataset.id, ch = CH.find(c => c.id === id);
+    const n = +t.value.replace(/\D/g, '');
+    if (!n) { delete S.rates[id]; t.value = full(ch.rate); }
+    else { S.rates[id] = n; t.value = full(n); }
+    update();
+  });
+  $('#btn-suggest').addEventListener('click', () => { S.shares = { ...PRESETS[S.objective] }; syncShares(); update(); toast('Đã áp dụng tỷ trọng gợi ý cho mục tiêu ' + OBJ_NAME[S.objective]); });
+  $('#btn-norm').addEventListener('click', () => {
+    const tot = CH.reduce((s, c) => s + (+S.shares[c.id] || 0), 0);
+    if (!tot) return toast('Chưa có kênh nào có tỷ trọng');
+    let acc = 0; const ids = CH.map(c => c.id).filter(id => S.shares[id] > 0);
+    ids.forEach((id, k) => {
+      const v = k === ids.length - 1 ? 100 - acc : Math.round(S.shares[id] * 100 / tot);
+      S.shares[id] = v; acc += v;
+    });
+    syncShares(); update();
+  });
+
+  // ---------- Render ----------
+  function render(M) {
+    const { aud, T, rows, W } = M;
+    $('#aud-size').textContent = big(aud.size) + ' người';
+    $('#aud-pct').textContent = nf(1).format(aud.ratio * 100) + '% người dùng internet · CPM digital ×' + nf(2).format(M.cpmMult);
+
+    const k = [
+      ['Ngân sách phân bổ', vnd(T.budget), nf(0).format(T.shareTotal) + '% tổng ngân sách'],
+      ['Lượt hiển thị', cnt(T.imps), 'CPM bình quân ' + (T.imps ? vnd(T.budget / T.imps * 1000) : '—')],
+      ['Tiếp cận', cnt(T.reach), nf(1).format(T.reachPct * 100) + '% tập mục tiêu'],
+      ['Tần suất TB', T.freq ? nf(1).format(T.freq) + '×' : '—', 'lần / người tiếp cận'],
+      ['Click', cnt(T.clicks), 'CPC bình quân ' + (T.clicks >= 1 ? vnd(T.budget / T.clicks) : '—')],
+      ['Chuyển đổi', cnt(T.conv), 'CPA ' + (T.cpa ? vnd(T.cpa) : '—')],
+    ];
+    $('#kpis').innerHTML = k.map(([l, v, s]) => `<div class="kpi"><span class="eyebrow">${l}</span><span class="v num">${v}</span><span class="s">${s}</span></div>`).join('');
+
+    const al = $('#alloc'), st = T.shareTotal;
+    al.className = 'alloc' + (st > 100 ? ' over' : st < 100 ? ' under' : '');
+    al.querySelector('i').style.width = Math.min(100, st) + '%';
+    al.querySelector('span').textContent = st === 100 ? 'Đã phân bổ đủ 100%' : st > 100 ? `Vượt ${st - 100}% ngân sách` : `Còn ${100 - st}% chưa phân bổ`;
+
+    rows.forEach(r => {
+      const tr = body.querySelector(`tr[data-id="${r.ch.id}"]`);
+      tr.classList.toggle('zero', !r.share);
+      const set = (key, html) => { tr.querySelector(`[data-k="${key}"]`).innerHTML = html; };
+      set('budget', vnd(r.budget) + (r.noWeeks ? '<span class="warnchip">Không có tuần chạy</span>' : ''));
+      set('imps', cnt(r.imps) + (r.overSearch ? '<span class="warnchip" title="Lượt hiển thị vượt lượng tìm kiếm ước tính">Vượt nhu cầu tìm kiếm</span>' : ''));
+      set('reach', cnt(r.reach));
+      set('freq', r.freq ? nf(1).format(r.freq) + '×' : '—');
+      set('clicks', r.ch.ctr ? cnt(r.clicks) : '<span class="hint">n/a</span>');
+      set('conv', r.ch.cvr ? cnt(r.conv) : '<span class="hint">n/a</span>');
+    });
+    $('#mix-foot').innerHTML = `<td>Tổng</td><td class="num">${nf(0).format(st)}%</td><td class="num">${vnd(T.budget)}</td><td></td>
+      <td class="num">${cnt(T.imps)}</td><td class="num">${cnt(T.reach)}</td><td class="num">${T.freq ? nf(1).format(T.freq) + '×' : '—'}</td>
+      <td class="num">${cnt(T.clicks)}</td><td class="num">${cnt(T.conv)}</td>`;
+
+    renderDonut(rows, T);
+    renderBars(M);
+    renderGantt(M);
+    renderScen(M);
+  }
+
+  function renderDonut(rows, T) {
+    const r = 70, C = 2 * Math.PI * r, live = rows.filter(x => x.budget > 0);
+    let acc = 0, segs = '';
+    live.forEach(x => {
+      const len = T.budget ? x.budget / T.budget * C : 0;
+      segs += `<circle cx="90" cy="90" r="${r}" fill="none" stroke="${x.ch.color}" stroke-width="22" stroke-dasharray="${Math.max(0, len - 1.5)} ${C}" stroke-dashoffset="${-acc}" transform="rotate(-90 90 90)"><title>${x.ch.name}: ${vnd(x.budget)}</title></circle>`;
+      acc += len;
+    });
+    if (!live.length) segs = `<circle cx="90" cy="90" r="${r}" fill="none" stroke="var(--line)" stroke-width="22"/>`;
+    $('#donut').innerHTML = segs + `<text x="90" y="86" text-anchor="middle" style="font-size:11px">Tổng</text><text x="90" y="104" text-anchor="middle" style="font-size:15px;fill:var(--ink);font-weight:500">${vnd(T.budget)}</text>`;
+    $('#legend').innerHTML = live.sort((a, b) => b.budget - a.budget).map(x =>
+      `<span><i class="dot" style="background:${x.ch.color}"></i>${x.ch.name}</span><span class="num">${T.budget ? nf(1).format(x.budget / T.budget * 100) : 0}%</span>`).join('') || '<span class="hint">Chưa phân bổ ngân sách</span>';
+  }
+
+  function niceMax(v) {
+    if (v <= 0) return 1;
+    const p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p;
+    return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+  }
+  function renderBars(M) {
+    const { W, rows, weekly } = M;
+    const left = 52, top = 12, h = 170, bw = 34, gap = 10;
+    const width = left + W.length * (bw + gap) + 10, height = top + h + 34;
+    const max = niceMax(Math.max(...weekly, 0));
+    const y = v => top + h - v / max * h;
+    let g = '';
+    for (let i = 0; i <= 4; i++) {
+      const v = max * i / 4;
+      g += `<line class="gridline" x1="${left}" x2="${width - 6}" y1="${y(v)}" y2="${y(v)}"/><text x="${left - 6}" y="${y(v) + 3.5}" text-anchor="end">${v ? big(v) : '0'}</text>`;
+    }
+    W.forEach((wk, i) => {
+      const x = left + 5 + i * (bw + gap);
+      let base = 0;
+      rows.forEach(r => {
+        const v = r.weekly[i]; if (v <= 0) return;
+        g += `<rect x="${x}" y="${y(base + v)}" width="${bw}" height="${Math.max(0, y(base) - y(base + v))}" fill="${r.ch.color}"><title>Tuần ${i + 1} · ${r.ch.name}: ${vnd(v)}</title></rect>`;
+        base += v;
+      });
+      g += `<text x="${x + bw / 2}" y="${top + h + 14}" text-anchor="middle">T${i + 1}</text><text x="${x + bw / 2}" y="${top + h + 27}" text-anchor="middle" style="font-size:9.5px">${dm(wk.date)}</text>`;
+    });
+    const svg = $('#bars');
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('width', width); svg.setAttribute('height', height);
+    svg.innerHTML = g;
+  }
+  const dm = d => String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+
+  function renderGantt(M) {
+    const { W, rows, weekly } = M;
+    const maxCell = Math.max(1, ...rows.flatMap(r => r.weekly));
+    let h = '<thead><tr><th class="ch">Kênh</th>' + W.map((wk, i) => `<th>T${i + 1}<br>${dm(wk.date)}</th>`).join('') + '</tr></thead><tbody>';
+    rows.filter(r => r.share > 0).forEach(r => {
+      const off = new Set(S.off[r.ch.id] || []);
+      h += `<tr><td class="ch"><span class="chname"><span class="dot" style="background:${r.ch.color}"></span>${r.ch.name}</span></td>`;
+      W.forEach((_, i) => {
+        const v = r.weekly[i];
+        if (off.has(i)) h += `<td><button type="button" class="cell off" data-ch="${r.ch.id}" data-w="${i}" aria-label="${r.ch.name} tuần ${i + 1}: nghỉ, bấm để bật"><em>nghỉ</em></button></td>`;
+        else {
+          const a = .18 + .82 * v / maxCell;
+          h += `<td><button type="button" class="cell" data-ch="${r.ch.id}" data-w="${i}" title="${r.ch.name} · Tuần ${i + 1}: ${vnd(v)}" aria-label="${r.ch.name} tuần ${i + 1}: ${vnd(v)}, bấm để tắt"><span class="fill" style="background:${r.ch.color};opacity:${a.toFixed(2)}"></span><em style="${a > .6 ? 'color:#fff' : ''}">${big(v, 0)}</em></button></td>`;
+        }
+      });
+      h += '</tr>';
+    });
+    if (!rows.some(r => r.share > 0)) h += `<tr><td class="ch hint" colspan="${W.length + 1}">Chưa có kênh nào được phân bổ.</td></tr>`;
+    h += '</tbody><tfoot><tr><td class="ch">Tổng tuần</td>' + weekly.map(v => `<td>${big(v, 0)}</td>`).join('') + '</tr></tfoot>';
+    $('#gantt').innerHTML = h;
+  }
+  $('#gantt').addEventListener('click', e => {
+    const b = e.target.closest('.cell'); if (!b) return;
+    const id = b.dataset.ch, w = +b.dataset.w;
+    const set = new Set(S.off[id] || []);
+    set.has(w) ? set.delete(w) : set.add(w);
+    S.off[id] = [...set].sort((a, b) => a - b);
+    update();
+    const again = document.querySelector(`.cell[data-ch="${id}"][data-w="${w}"]`); if (again) again.focus();
+  });
+
+  // ---------- Scenarios ----------
+  function summary(M) {
+    return { budget: M.T.budget, imps: M.T.imps, reach: M.T.reach, reachPct: M.T.reachPct, freq: M.T.freq, clicks: M.T.clicks, conv: M.T.conv, cpa: M.T.cpa, cpr: M.T.cpr };
+  }
+  function renderScen(M) {
+    const el = $('#scen');
+    if (!scenarios.length) { el.innerHTML = '<div class="empty">Chưa có phương án nào. Chỉnh brief và phân bổ kênh, sau đó bấm <b>Lưu phương án</b> để so sánh tại đây.</div>'; return; }
+    const cur = { name: 'Đang chỉnh (chưa lưu)', obj: S.objective, k: summary(M), current: true };
+    const list = [...scenarios, cur];
+    const cols = [
+      ['Ngân sách', 'budget', vnd, null], ['Tiếp cận', 'reach', cnt, 'max'], ['% mục tiêu', 'reachPct', v => nf(1).format(v * 100) + '%', 'max'],
+      ['Tần suất', 'freq', v => v ? nf(1).format(v) + '×' : '—', null], ['Click', 'clicks', cnt, 'max'], ['Chuyển đổi', 'conv', cnt, 'max'],
+      ['CPA', 'cpa', vnd, 'min'], ['Chi phí / người tiếp cận', 'cpr', v => v ? full(v) + ' đ' : '—', 'min'],
+    ];
+    const best = {};
+    cols.forEach(([, key, , dir]) => {
+      if (!dir) return;
+      const vals = list.map(s => s.k[key]).filter(v => v > 0);
+      if (vals.length > 1) best[key] = dir === 'max' ? Math.max(...vals) : Math.min(...vals);
+    });
+    el.innerHTML = `<div class="scroll"><table class="scen"><thead><tr><th>Phương án</th>${cols.map(c => `<th>${c[0]}</th>`).join('')}<th></th></tr></thead><tbody>` +
+      list.map((s, i) => `<tr><td><b>${esc(s.name)}</b><br><span class="hint">${OBJ_NAME[s.obj] || ''}</span></td>` +
+        cols.map(([, key, f]) => `<td class="num${best[key] != null && s.k[key] === best[key] ? ' best' : ''}">${f(s.k[key])}</td>`).join('') +
+        `<td>${s.current ? '' : `<button class="btn small" data-load="${i}" type="button">Mở</button> <button class="btn small" data-del="${i}" type="button" aria-label="Xoá ${esc(s.name)}">Xoá</button>`}</td></tr>`).join('') +
+      '</tbody></table></div><p class="hint" style="margin:6px 0 0">Ô màu xanh là phương án tốt nhất ở chỉ số đó.</p>';
+  }
+  $('#scen').addEventListener('click', e => {
+    const l = e.target.closest('[data-load]'), d = e.target.closest('[data-del]');
+    if (l) { const s = scenarios[+l.dataset.load]; S = Object.assign(clone(DEFAULT), clone(s.state)); syncForm(); syncShares(); update(); toast('Đã mở "' + s.name + '"'); }
+    if (d) { const s = scenarios.splice(+d.dataset.del, 1)[0]; store.set(SKEY, scenarios); update(); toast('Đã xoá "' + s.name + '"'); }
+  });
+  $('#btn-save').addEventListener('click', () => {
+    const M = compute();
+    const name = (S.name || 'Phương án') + ' · ' + OBJ_NAME[S.objective] + ' · ' + big(S.budget);
+    scenarios.push({ name, obj: S.objective, state: clone(S), k: summary(M) });
+    if (scenarios.length > 5) scenarios.shift();
+    store.set(SKEY, scenarios); update();
+    toast('Đã lưu phương án');
+  });
+
+  // ---------- Copy / reset ----------
+  $('#btn-copy').addEventListener('click', () => {
+    const M = compute();
+    const head = ['Kênh', 'Tỷ trọng %', 'Ngân sách (VNĐ)', 'Đơn giá', 'Loại giá', 'Hiển thị', 'Tiếp cận', 'Tần suất', 'Click', 'Chuyển đổi', ...M.W.map((w, i) => 'Tuần ' + (i + 1) + ' (' + dm(w.date) + ')')];
+    const lines = [S.name, `Mục tiêu: ${OBJ_NAME[S.objective]}\tNgân sách: ${full(S.budget)}\t${S.start} → ${S.end}`, '', head.join('\t')];
+    M.rows.filter(r => r.share > 0).forEach(r => lines.push([r.ch.name, r.share, Math.round(r.budget), Math.round(r.rate), r.ch.mode.toUpperCase(), Math.round(r.imps), Math.round(r.reach), r.freq.toFixed(1), Math.round(r.clicks), Math.round(r.conv), ...r.weekly.map(Math.round)].join('\t')));
+    lines.push(['Tổng', M.T.shareTotal, Math.round(M.T.budget), '', '', Math.round(M.T.imps), Math.round(M.T.reach), M.T.freq.toFixed(1), Math.round(M.T.clicks), Math.round(M.T.conv), ...M.weekly.map(Math.round)].join('\t'));
+    const text = lines.join('\n');
+    const fallback = () => {
+      const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      ta.remove(); toast(ok ? 'Đã sao chép, dán vào Excel hoặc Google Sheets' : 'Trình duyệt chặn sao chép');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => toast('Đã sao chép, dán vào Excel hoặc Google Sheets'), fallback);
+    else fallback();
+  });
+  let resetArmed = 0;
+  $('#btn-reset').addEventListener('click', e => {
+    const now = Date.now();
+    if (now - resetArmed > 3000) { resetArmed = now; e.target.textContent = 'Bấm lần nữa để đặt lại'; setTimeout(() => { e.target.textContent = 'Đặt lại mẫu'; }, 3000); return; }
+    resetArmed = 0; e.target.textContent = 'Đặt lại mẫu';
+    S = clone(DEFAULT); syncForm(); syncShares(); update(); toast('Đã đặt lại dữ liệu mẫu');
+  });
+
+  let tt;
+  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 2200); }
+  function persist() { store.set(KEY, S); }
+  function update() { render(compute()); persist(); }
+
+  syncForm(); syncShares(); update();
+})();
+</script>
